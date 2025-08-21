@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Step1 - Google Drive Loader</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    button { margin: 5px; padding: 10px; font-size: 16px; }
+    #status { margin-top: 15px; color: blue; }
+  </style>
+  <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+  <h1>Step1: Google Drive 認証とフォルダ選択</h1>
+
+  <!-- 認証ボタン -->
+  <button id="authorize_button">Google Drive にログイン</button>
+  <button id="signout_button" style="display:none;">ログアウト</button>
+  <div id="status">未ログイン</div>
+
+  <!-- フォルダ選択 -->
+  <button id="choose_folder" style="display:none;">フォルダを選択</button>
+  <div id="folder_id"></div>
+
+  <script>
+    // ★ 必ず自分の Client ID を設定してください！
+    const CLIENT_ID = "YOUR_CLIENT_ID.apps.googleusercontent.com";
+    const API_KEY = ""; // 今回は不要
+    const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited = false;
+
+    document.getElementById("authorize_button").onclick = handleAuthClick;
+    document.getElementById("signout_button").onclick = handleSignoutClick;
+    document.getElementById("choose_folder").onclick = handleChooseFolder;
+
+    // Google API 初期化
+    function gapiLoaded() {
+      gapi.load("client", initializeGapiClient);
+    }
+
+    async function initializeGapiClient() {
+      await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+      });
+      gapiInited = true;
+    }
+
+    // Google Identity Services 初期化
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: "", // 後で設定
+      });
+      gisInited = true;
+    }
+
+    // 認証ボタン押下時
+    function handleAuthClick() {
+      tokenClient.callback = (resp) => {
+        if (resp.error !== undefined) {
+          throw resp;
+        }
+        document.getElementById("status").textContent = "ログイン成功";
+        document.getElementById("authorize_button").style.display = "none";
+        document.getElementById("signout_button").style.display = "inline-block";
+        document.getElementById("choose_folder").style.display = "inline-block";
+      };
+
+      tokenClient.requestAccessToken({ prompt: "consent" });
+    }
+
+    // ログアウト処理
+    function handleSignoutClick() {
+      gapi.client.setToken("");
+      document.getElementById("status").textContent = "未ログイン";
+      document.getElementById("authorize_button").style.display = "inline-block";
+      document.getElementById("signout_button").style.display = "none";
+      document.getElementById("choose_folder").style.display = "none";
+      document.getElementById("folder_id").textContent = "";
+    }
+
+    // フォルダ選択処理
+    async function handleChooseFolder() {
+      try {
+        // フォルダをリストアップ
+        let response = await gapi.client.drive.files.list({
+          q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
+          fields: "files(id, name)",
+          pageSize: 10
+        });
+
+        let files = response.result.files;
+        if (!files || files.length == 0) {
+          document.getElementById("folder_id").textContent = "フォルダが見つかりません";
+          return;
+        }
+
+        // 最初のフォルダを選択（簡易版）
+        let folder = files[0];
+        localStorage.setItem("selectedFolderId", folder.id);
+        document.getElementById("folder_id").textContent = 
+          `選択したフォルダ: ${folder.name} (ID: ${folder.id})`;
+      } catch (err) {
+        document.getElementById("folder_id").textContent = "エラー: " + err.message;
+      }
+    }
+
+    // Google API 読み込み
+    window.onload = () => {
+      gapiLoaded();
+      gisLoaded();
+    }
+  </script>
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
