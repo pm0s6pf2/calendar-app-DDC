@@ -1,121 +1,284 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>Step1 - Google Drive Loader (GitHub Pages)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Step2 - Today Image Viewer (Google Drive)</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    button { margin: 5px; padding: 10px; font-size: 16px; }
-    #status { margin-top: 15px; color: blue; }
+    :root { --gap: 12px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Yu Gothic UI", sans-serif; margin: 16px; }
+    h1 { font-size: 1.2rem; margin-bottom: var(--gap); }
+    .row { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: center; }
+    button { padding: 10px 14px; font-size: 16px; border-radius: 10px; border: 1px solid #ddd; cursor: pointer; background: #fff; }
+    button[disabled] { opacity: .5; cursor: not-allowed; }
+    #status { margin-top: 8px; color: #0056b3; }
+    #picker { margin-top: var(--gap); display: none; gap: var(--gap); }
+    select, input[type="text"] { font-size: 14px; padding: 8px; border-radius: 8px; border: 1px solid #ddd; min-width: 260px; }
+
+    #stage { position: relative; margin-top: 16px; }
+    .frame { width: 100%; max-width: 960px; margin-inline: auto; background: #fafafa; border: 1px solid #eee; border-radius: 12px; padding: 12px; }
+    .viewport { position: relative; width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; background: #fff; }
+    img#photo { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+    #overlay { position: absolute; inset: 0; display: none; background: rgba(0,0,0,.55); color: white; align-items: center; justify-content: center; text-align: center; padding: 16px; white-space: pre-wrap; }
+    #overlay.show { display: flex; }
+    #filename { margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { color: #666; font-size: .9rem; }
   </style>
-  <!-- Google API & Identity Services -->
-  <script src="https://apis.google.com/js/api.js" defer></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <h1>Step1: Google Drive 認証とフォルダ選択</h1>
+  <h1>Step2: 今日の画像を表示（Google Drive）</h1>
 
-  <!-- 認証ボタン -->
-  <button id="authorize_button">Google Drive にログイン</button>
-  <button id="signout_button" style="display:none;">ログアウト</button>
-  <div id="status">未ログイン</div>
+  <div class="row">
+    <button id="login" disabled>Google Drive にログイン</button>
+    <button id="logout" style="display:none;">ログアウト</button>
+    <button id="choose" style="display:none;">フォルダを選択</button>
+    <button id="showToday" style="display:none;">今日の画像を表示</button>
+  </div>
+  <div id="status" class="muted">未ログイン</div>
 
-  <!-- フォルダ選択 -->
-  <button id="choose_folder" style="display:none;">フォルダを選択</button>
-  <div id="folder_id"></div>
+  <div id="picker" class="row">
+    <select id="folderList" aria-label="フォルダ一覧"></select>
+    <input id="folderIdInput" type="text" placeholder="またはフォルダIDを直接入力" aria-label="フォルダID入力" />
+    <button id="saveFolder">保存</button>
+  </div>
+  <div class="muted" id="remembered"></div>
+
+  <div id="stage" class="frame">
+    <div class="viewport">
+      <!-- レイアウトシフト対策：プレースホルダ領域を aspect-ratio で確保 -->
+      <img id="photo" alt="今日の画像" width="1600" height="1200" />
+      <div id="overlay"></div>
+    </div>
+    <div id="filename" class="muted"></div>
+  </div>
 
   <script>
-    // ★ GitHub Pages の公開URLをリダイレクトURIに登録した Client ID を使ってください
+    // ====== 設定 ======
+    // ※ 必ずあなたの OAuth クライアントIDに置き換えてください（Step1 と同じもの）
     const CLIENT_ID = "432542663306-gajl9s636n960rmul1a630e2k9lchdl3.apps.googleusercontent.com";
-    const API_KEY = ""; // 今回は不要
     const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+    const TIMEZONE = "Asia/Tokyo"; // テスト項目でのタイムゾーンズレ対策
 
+    // ====== 状態 ======
     let tokenClient;
-    let gapiInited = false;
-    let gisInited = false;
+    let gapiReady = false;
+    let gisReady = false;
+    let lastObjectURL = null; // 直前の Blob URL を保持（失敗時は前の画像を残す）
 
-    document.getElementById("authorize_button").onclick = handleAuthClick;
-    document.getElementById("signout_button").onclick = handleSignoutClick;
-    document.getElementById("choose_folder").onclick = handleChooseFolder;
-
-    // Google API 初期化
-    function gapiLoaded() {
-      gapi.load("client", initializeGapiClient);
+    // ====== ユーティリティ ======
+    const $ = (sel) => document.querySelector(sel);
+    function setStatus(msg, isError = false) {
+      const el = $("#status");
+      el.textContent = msg;
+      el.style.color = isError ? "crimson" : "#0056b3";
+    }
+    function showOverlay(message) {
+      const el = $("#overlay");
+      el.textContent = message;
+      el.classList.add("show");
+    }
+    function hideOverlay() {
+      const el = $("#overlay");
+      el.textContent = "";
+      el.classList.remove("show");
+    }
+    function clearImage() {
+      if (lastObjectURL) URL.revokeObjectURL(lastObjectURL);
+      lastObjectURL = null;
+      $("#photo").src = "";
+      $("#filename").textContent = "";
+      hideOverlay();
+    }
+    function getSavedFolderId() { return localStorage.getItem("selectedFolderId"); }
+    function dateToYMD(date) {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: TIMEZONE,
+        year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(date);
+      const y = parts.find(p => p.type === "year").value;
+      const m = parts.find(p => p.type === "month").value;
+      const d = parts.find(p => p.type === "day").value;
+      return `${y}-${m}-${d}`;
     }
 
-    async function initializeGapiClient() {
-      await gapi.client.init({
-        apiKey: API_KEY,
-        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+    async function ensureToken() {
+      let token = gapi.client.getToken();
+      if (!token) {
+        await new Promise((resolve) => {
+          tokenClient.callback = () => resolve();
+          tokenClient.requestAccessToken({ prompt: "" }); // サイレント更新
+        });
+        token = gapi.client.getToken();
+      }
+      return token.access_token;
+    }
+
+    async function findImageFile(folderId, baseName) {
+      // まずは .png を優先（テスト要件）。見つからなければ jpg/jpeg も試す。
+      const names = [`${baseName}.png`, `${baseName}.jpg`, `${baseName}.jpeg`];
+      for (const name of names) {
+        try {
+          const res = await gapi.client.drive.files.list({
+            q: `'${folderId}' in parents and name='${name}' and trashed=false`,
+            fields: "files(id,name,mimeType,size,modifiedTime)",
+            pageSize: 1,
+            includeItemsFromAllDrives: true,
+            supportsAllDrives: true,
+          });
+          const files = res.result.files || [];
+          if (files.length > 0) return files[0];
+        } catch (e) {
+          if (e.status === 401) { await ensureToken(); continue; }
+          throw e;
+        }
+      }
+      return null;
+    }
+
+    async function displayByBaseName(folderId, baseName) {
+      setStatus("検索中…");
+      hideOverlay();
+      try {
+        const file = await findImageFile(folderId, baseName);
+        if (!file) {
+          setStatus("画像が見つかりません");
+          showOverlay(`"${baseName}.png" が見つかりませんでした。\nフォルダやファイル名（YYYY-MM-DD.png）を確認してください。`);
+          return;
+        }
+
+        const accessToken = await ensureToken();
+        const url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+        const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!resp.ok) {
+          if (resp.status === 401) { await ensureToken(); return await displayByBaseName(folderId, baseName); }
+          throw new Error(`取得失敗: ${resp.status}`);
+        }
+        const blob = await resp.blob();
+        if (lastObjectURL) URL.revokeObjectURL(lastObjectURL);
+        lastObjectURL = URL.createObjectURL(blob);
+        $("#photo").src = lastObjectURL;
+        $("#filename").textContent = `${file.name}（最終更新: ${new Date(file.modifiedTime).toLocaleString('ja-JP', { timeZone: TIMEZONE })}）`;
+        setStatus("表示成功");
+      } catch (e) {
+        console.error(e);
+        setStatus("エラー: " + e.message, true);
+        showOverlay("通信に失敗しました。再試行してください。");
+      }
+    }
+
+    async function displayToday() {
+      const folderId = getSavedFolderId();
+      if (!folderId) { openFolderPicker(); return; }
+      const ymd = dateToYMD(new Date());
+      await displayByBaseName(folderId, ymd);
+    }
+
+    function openFolderPicker() {
+      $("#picker").style.display = "flex";
+      loadFolderList();
+    }
+
+    async function loadFolderList() {
+      try {
+        const res = await gapi.client.drive.files.list({
+          q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
+          fields: "files(id,name)",
+          pageSize: 100,
+          orderBy: "name",
+          includeItemsFromAllDrives: true,
+          supportsAllDrives: true,
+        });
+        const sel = $("#folderList");
+        sel.innerHTML = "";
+        (res.result.files || []).forEach((f) => {
+          const opt = document.createElement("option");
+          opt.value = f.id;
+          opt.textContent = `${f.name} (${f.id})`;
+          sel.appendChild(opt);
+        });
+      } catch (e) {
+        setStatus("フォルダ取得エラー: " + e.message, true);
+      }
+    }
+
+    function afterLogin() {
+      setStatus("ログイン成功");
+      $("#login").style.display = "none";
+      $("#logout").style.display = "inline-block";
+      $("#choose").style.display = "inline-block";
+      $("#showToday").style.display = "inline-block";
+
+      const saved = getSavedFolderId();
+      if (saved) {
+        $("#remembered").textContent = `選択中フォルダID: ${saved}`;
+        displayToday();
+      } else {
+        openFolderPicker();
+      }
+    }
+
+    // ====== イベント割り当て ======
+    document.addEventListener("DOMContentLoaded", () => {
+      $("#login").addEventListener("click", () => {
+        tokenClient.callback = (resp) => {
+          if (resp.error) { setStatus("認証エラー: " + resp.error, true); return; }
+          gapi.client.setToken(resp); // gapi にアクセストークンを設定
+          afterLogin();
+        };
+        tokenClient.requestAccessToken({ prompt: "consent" }); // 初回は consent
       });
-      gapiInited = true;
-    }
 
-    // Google Identity Services 初期化
+      $("#logout").addEventListener("click", () => {
+        try { google.accounts.oauth2.revoke(gapi.client.getToken()?.access_token || "", () => {}); } catch {}
+        gapi.client.setToken("");
+        setStatus("未ログイン");
+        $("#login").style.display = "inline-block";
+        $("#login").disabled = false;
+        $("#logout").style.display = "none";
+        $("#choose").style.display = "none";
+        $("#showToday").style.display = "none";
+        $("#picker").style.display = "none";
+        $("#remembered").textContent = "";
+        clearImage();
+      });
+
+      $("#choose").addEventListener("click", openFolderPicker);
+      $("#saveFolder").addEventListener("click", () => {
+        const id = $("#folderIdInput").value.trim() || $("#folderList").value;
+        if (!id) { setStatus("フォルダを選択またはID入力してください", true); return; }
+        localStorage.setItem("selectedFolderId", id);
+        $("#remembered").textContent = `選択中フォルダID: ${id}`;
+        $("#picker").style.display = "none";
+        displayToday();
+      });
+
+      $("#showToday").addEventListener("click", displayToday);
+    });
+
+    // ====== Google API 初期化 ======
+    function gapiLoaded() {
+      gapi.load("client", async () => {
+        await gapi.client.init({
+          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+        });
+        gapiReady = true;
+        if (gisReady) document.getElementById("login").disabled = false;
+      });
+    }
     function gisLoaded() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: "", // 後で設定
+        callback: "", // 後でセット
       });
-      gisInited = true;
+      gisReady = true;
+      if (gapiReady) document.getElementById("login").disabled = false;
     }
-
-    // 認証ボタン押下時
-    function handleAuthClick() {
-      tokenClient.callback = (resp) => {
-        if (resp.error !== undefined) {
-          throw resp;
-        }
-        document.getElementById("status").textContent = "ログイン成功";
-        document.getElementById("authorize_button").style.display = "none";
-        document.getElementById("signout_button").style.display = "inline-block";
-        document.getElementById("choose_folder").style.display = "inline-block";
-      };
-
-      tokenClient.requestAccessToken({ prompt: "consent" });
-    }
-
-    // ログアウト処理
-    function handleSignoutClick() {
-      gapi.client.setToken("");
-      document.getElementById("status").textContent = "未ログイン";
-      document.getElementById("authorize_button").style.display = "inline-block";
-      document.getElementById("signout_button").style.display = "none";
-      document.getElementById("choose_folder").style.display = "none";
-      document.getElementById("folder_id").textContent = "";
-    }
-
-    // フォルダ選択処理
-    async function handleChooseFolder() {
-      try {
-        let response = await gapi.client.drive.files.list({
-          q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
-          fields: "files(id, name)",
-          pageSize: 10
-        });
-
-        let files = response.result.files;
-        if (!files || files.length === 0) {
-          document.getElementById("folder_id").textContent = "フォルダが見つかりません";
-          return;
-        }
-
-        // 最初のフォルダを選択（簡易版）
-        let folder = files[0];
-        localStorage.setItem("selectedFolderId", folder.id);
-        document.getElementById("folder_id").textContent =
-          `選択したフォルダ: ${folder.name} (ID: ${folder.id})`;
-      } catch (err) {
-        document.getElementById("folder_id").textContent = "エラー: " + err.message;
-      }
-    }
-
-    // onload の代わりに script defer/async を考慮して DOMContentLoaded 待機
-    document.addEventListener("DOMContentLoaded", () => {
-      gapiLoaded();
-      gisLoaded();
-    });
   </script>
+
+  <!-- Google API -->
+  <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()" async defer></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
 </body>
 </html>
