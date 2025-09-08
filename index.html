@@ -38,7 +38,6 @@
 
   <div id="picker" class="row">
     <select id="folderList" aria-label="フォルダ一覧"></select>
-    <input id="folderIdInput" type="text" placeholder="またはフォルダIDを直接入力" aria-label="フォルダID入力" />
     <button id="saveFolder">保存</button>
   </div>
   <div class="muted" id="remembered"></div>
@@ -244,8 +243,8 @@
 
       $("#choose").addEventListener("click", openFolderPicker);
       $("#saveFolder").addEventListener("click", () => {
-        const id = $("#folderIdInput").value.trim() || $("#folderList").value;
-        if (!id) { setStatus("フォルダを選択またはID入力してください", true); return; }
+        const id = $("#folderList").value;
+        if (!id) { setStatus("フォルダを選択してください", true); return; }
         localStorage.setItem("selectedFolderId", id);
         $("#remembered").textContent = `選択中フォルダID: ${id}`;
         $("#picker").style.display = "none";
