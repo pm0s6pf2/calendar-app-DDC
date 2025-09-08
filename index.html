@@ -34,6 +34,18 @@
     <button id="choose" style="display:none;">フォルダを選択</button>
     <button id="showToday" style="display:none;">今日の画像を表示</button>
   </div>
+  <!-- 日単位の移動-->
+  <div id="navDay" class="row" style="display:none; margin-top:12px;">
+    <button id="prevDay">◀ 昨日</button>
+    <button id="nextDay">明日 ▶</button>
+  </div>
+
+  <!--年単位の移動-->
+  <div id="navYear" class="row" style="display:none; margin-top:12px;">
+    <button id="prevYear">⏪ 昨年</button>
+    <button id="nextYear">来年 ⏩</button>
+  </div>
+
   <div id="status" class="muted">未ログイン</div>
 
   <div id="picker" class="row">
@@ -63,6 +75,7 @@
     let gapiReady = false;
     let gisReady = false;
     let lastObjectURL = null; // 直前の Blob URL を保持（失敗時は前の画像を残す）
+    let currentDate = new Date(); //今表示している日付
 
     // ====== ユーティリティ ======
     const $ = (sel) => document.querySelector(sel);
@@ -165,11 +178,18 @@
       }
     }
 
-    async function displayToday() {
+    // 指定日付で画像を表示する関数
+    async function displayByDate(date) {
       const folderId = getSavedFolderId();
       if (!folderId) { openFolderPicker(); return; }
-      const ymd = dateToYMD(new Date());
+      currentDate = date; // 状態を更新
+      const ymd = dateToYMD(date);
       await displayByBaseName(folderId, ymd);
+    }
+
+
+    async function displayToday() {
+      await displayByDate(new Date());
     }
 
     function openFolderPicker() {
@@ -214,6 +234,10 @@
       } else {
         openFolderPicker();
       }
+
+      ["navDay","navYear"].forEach(id => {
+      document.getElementById(id).style.display = "flex";
+      });
     }
 
     // ====== イベント割り当て ======
@@ -252,6 +276,30 @@
       });
 
       $("#showToday").addEventListener("click", displayToday);
+
+      $("#prevDay").addEventListener("click", () => {
+        const d = new Date(currentDate);
+        d.setDate(d.getDate() - 1);
+      displayByDate(d);
+      });
+
+      $("#nextDay").addEventListener("click", () => {
+        const d = new Date(currentDate);
+        d.setDate(d.getDate() + 1);
+        displayByDate(d);
+      });
+
+      $("#prevYear").addEventListener("click", () => {
+        const d = new Date(currentDate);
+        d.setFullYear(d.getFullYear() - 1);
+        displayByDate(d);
+      });
+
+      $("#nextYear").addEventListener("click", () => {
+        const d = new Date(currentDate);
+        d.setFullYear(d.getFullYear() + 1);
+        displayByDate(d);
+      });
     });
 
     // ====== Google API 初期化 ======
