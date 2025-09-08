@@ -193,7 +193,7 @@
         (res.result.files || []).forEach((f) => {
           const opt = document.createElement("option");
           opt.value = f.id;
-          opt.textContent = `${f.name} (${f.id})`;
+          opt.textContent = f.name;
           sel.appendChild(opt);
         });
       } catch (e) {
