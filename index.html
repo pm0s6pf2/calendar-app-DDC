@@ -156,6 +156,7 @@
           setStatus("画像が見つかりません");
           showOverlay(`"${baseName}.png" が見つかりませんでした。\nフォルダやファイル名（YYYY-MM-DD.png）を確認してください。`);
           return;
+          return false; // 失敗
         }
 
         const accessToken = await ensureToken();
@@ -172,19 +173,25 @@
         $("#filename").textContent = `${file.name}（最終更新: ${new Date(file.modifiedTime).toLocaleString('ja-JP', { timeZone: TIMEZONE })}）`;
         setStatus("表示成功");
       } catch (e) {
+        return true; // 成功
+      } catch (e) {
         console.error(e);
         setStatus("エラー: " + e.message, true);
         showOverlay("通信に失敗しました。再試行してください。");
+        return false;
       }
     }
+
 
     // 指定日付で画像を表示する関数
     async function displayByDate(date) {
       const folderId = getSavedFolderId();
       if (!folderId) { openFolderPicker(); return; }
-      currentDate = date; // 状態を更新
       const ymd = dateToYMD(date);
-      await displayByBaseName(folderId, ymd);
+      const success = await displayByBaseName(folderId, ymd);
+      if (success) {
+        currentDate = date; // 画像が見つかったときだけ更新
+      }
     }
 
 
