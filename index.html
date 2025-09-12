@@ -251,11 +251,14 @@
     document.addEventListener("DOMContentLoaded", () => {
       $("#login").addEventListener("click", () => {
         tokenClient.callback = (resp) => {
-          if (resp.error) { setStatus("認証エラー: " + resp.error, true); return; }
+          if (resp.error) {
+            setStatus("認証エラー: " + resp.error, true);
+            return;
+          }
           gapi.client.setToken(resp); // gapi にアクセストークンを設定
           afterLogin();
         };
-        tokenClient.requestAccessToken({ prompt: "consent" }); // 初回は consent
+        tokenClient.requestAccessToken({ prompt: "consent" });
       });
 
       $("#logout").addEventListener("click", () => {
@@ -316,18 +319,26 @@
           discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
         });
         gapiReady = true;
-        if (gisReady) document.getElementById("login").disabled = false;
+        enableLoginIfReady();
       });
     }
+
     function gisLoaded() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: "", // 後でセット
+        callback: () => {}, // 初期は空でOK（クリック時に上書き）
       });
       gisReady = true;
-      if (gapiReady) document.getElementById("login").disabled = false;
+      enableLoginIfReady();
     }
+    
+    function enableLoginIfReady() {
+      if (gapiReady && gisReady) {
+        document.getElementById("login").disabled = false;
+      }
+    }
+
   </script>
 
   <!-- Google API -->
