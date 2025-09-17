@@ -172,7 +172,6 @@
         $("#photo").src = lastObjectURL;
         $("#filename").textContent = `${file.name}（最終更新: ${new Date(file.modifiedTime).toLocaleString('ja-JP', { timeZone: TIMEZONE })}）`;
         setStatus("表示成功");
-      } catch (e) {
         return true; // 成功
       } catch (e) {
         console.error(e);
@@ -262,7 +261,11 @@
       });
 
       $("#logout").addEventListener("click", () => {
-        try { google.accounts.oauth2.revoke(gapi.client.getToken()?.access_token || "", () => {}); } catch {}
+        try {
+          google.accounts.oauth2.revoke(gapi.client.getToken()?.access_token || "", () => {});
+        } catch (e) {
+          console.warn("revoke でエラー:", e);
+        }
         gapi.client.setToken("");
         setStatus("未ログイン");
         $("#login").style.display = "inline-block";
