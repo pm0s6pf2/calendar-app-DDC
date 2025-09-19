@@ -33,6 +33,7 @@
     <button id="logout" style="display:none;">ログアウト</button>
     <button id="choose" style="display:none;">フォルダを選択</button>
     <button id="showToday" style="display:none;">今日の画像を表示</button>
+    <button id="checkCacheBtn" disabled>キャッシュ使用量を確認</button>
   </div>
   <!-- 日単位の移動-->
   <div id="navDay" class="row" style="display:none; margin-top:12px;">
@@ -196,6 +197,8 @@
         $("#filename").textContent = `${file.name}（最終更新: ${new Date(file.modifiedTime).toLocaleString('ja-JP', { timeZone: TIMEZONE })}）`;
         // Driveから新規取得成功時
         setStatus(`🌐 ネットワークから取得して表示: ${file.name}`);
+        await showCacheUsage(); // ← キャッシュ状況を更新
+        return true;       
         return true; // 成功
       } catch (e) {
         console.error(e);
@@ -203,6 +206,23 @@
         showOverlay("通信に失敗しました。再試行してください。");
         return false;
       }
+    }
+
+    // キャッシュ使用量を計算して表示
+    async function showCacheUsage() {
+      const cache = await caches.open(CACHE_NAME);
+      const keys = await cache.keys();
+      let total = 0;
+      for (const req of keys) {
+        const resp = await cache.match(req);
+        if (resp) {
+          const blob = await resp.blob();
+          total += blob.size;
+        }
+      }
+      const mb = (total / (1024 * 1024)).toFixed(2);
+      console.log(`💾 キャッシュ使用量: ${mb} MB (${keys.length} ファイル)`);
+      setStatus(`キャッシュ使用量: ${mb} MB / ${keys.length} ファイル`);
     }
 
 
@@ -224,6 +244,13 @@
       if (!folderId) return;
 
       const cache = await caches.open(CACHE_NAME);
+
+      const file = await findImageFile(folderId, ymd);
+      if (!file) {
+        console.log(`🚫 ${ymd}: 画像なし`);
+        continue; // 画像が存在しない日もあるのでスキップ
+      }
+
 
       for (let offset = -range; offset <= range; offset++) {
         if (offset === 0) continue; // 中心日は displayByDate が処理済み
@@ -377,6 +404,8 @@
       });
     });
 
+    document.getElementById("checkCacheBtn").addEventListener("click", showCacheUsage);
+    
     // ====== Google API 初期化 ======
     function gapiLoaded() {
       gapi.load("client", async () => {
@@ -401,6 +430,7 @@
     function enableLoginIfReady() {
       if (gapiReady && gisReady) {
         document.getElementById("login").disabled = false;
+        document.getElementById("checkCacheBtn").disabled = false;
         setStatus("準備完了");
       }
     }
