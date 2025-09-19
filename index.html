@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Step3 - otherday Image Viewer (Google Drive)</title>
+  <title>Step4.1 - today-cache.html</title>
   <style>
     :root { --gap: 12px; }
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Yu Gothic UI", sans-serif; margin: 16px; }
@@ -26,7 +26,7 @@
   </style>
 </head>
 <body>
-  <h1>Step3: 他の日（昨日，明日，去年，来年）の画像を表示（Google Drive）</h1>
+  <h1>Step4.1: 今日表示した画像を保存して、再読み込み時はキャッシュから出す</h1>
 
   <div class="row">
     <button id="login" disabled>Google Drive にログイン</button>
@@ -69,6 +69,7 @@
     const CLIENT_ID = "432542663306-gajl9s636n960rmul1a630e2k9lchdl3.apps.googleusercontent.com";
     const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
     const TIMEZONE = "Asia/Tokyo"; // テスト項目でのタイムゾーンズレ対策
+    const CACHE_NAME = "image-cache-v1" ;
 
     // ====== 状態 ======
     let tokenClient;
@@ -151,11 +152,24 @@
       setStatus("検索中…");
       hideOverlay();
       try {
-        const file = await findImageFile(folderId, baseName);
+        // 1 先にキャッシュを確認
+        const cache = await caches.open(CACHE_NAME);
+        const cachedResponse = await cache.match(baseName);
+        if (cachedResponse) {
+          const blob = await cachedResponse.blob();
+          if (lastObjectURL) URL.revokeObjectURL(lastObjectURL);
+          lastObjectURL = URL.createObjectURL(blob);
+          $("#photo").src = lastObjectURL;
+          $("#filename").textContent = `${baseName}（キャッシュから表示）`;
+          setStatus("キャッシュから表示");
+          return true;
+        }
+
+        // 2 Drive からファイル検索
+               const file = await findImageFile(folderId, baseName);
         if (!file) {
           setStatus("画像が見つかりません");
           showOverlay(`"${baseName}.png" が見つかりませんでした。\nフォルダやファイル名（YYYY-MM-DD.png）を確認してください。`);
-          return;
           return false; // 失敗
         }
 
@@ -167,6 +181,15 @@
           throw new Error(`取得失敗: ${resp.status}`);
         }
         const blob = await resp.blob();
+
+        // --- ここでキャッシュ保存 ---
+        const cache = await caches.open(CACHE_NAME);
+        const responseForCache = new Response(blob, {
+          headers: { "Content-Type": file.mimeType }
+        });
+        await cache.put(baseName, responseForCache);
+        // ----------------------------
+
         if (lastObjectURL) URL.revokeObjectURL(lastObjectURL);
         lastObjectURL = URL.createObjectURL(blob);
         $("#photo").src = lastObjectURL;
