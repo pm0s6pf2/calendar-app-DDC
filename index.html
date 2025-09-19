@@ -161,7 +161,8 @@
           lastObjectURL = URL.createObjectURL(blob);
           $("#photo").src = lastObjectURL;
           $("#filename").textContent = `${baseName}（キャッシュから表示）`;
-          setStatus("キャッシュから表示");
+          // キャッシュ命中時
+          setStatus(`✅ キャッシュから表示: ${baseName}`);
           return true;
         }
 
@@ -183,7 +184,6 @@
         const blob = await resp.blob();
 
         // --- ここでキャッシュ保存 ---
-        const cache = await caches.open(CACHE_NAME);
         const responseForCache = new Response(blob, {
           headers: { "Content-Type": file.mimeType }
         });
@@ -194,7 +194,8 @@
         lastObjectURL = URL.createObjectURL(blob);
         $("#photo").src = lastObjectURL;
         $("#filename").textContent = `${file.name}（最終更新: ${new Date(file.modifiedTime).toLocaleString('ja-JP', { timeZone: TIMEZONE })}）`;
-        setStatus("表示成功");
+        // Driveから新規取得成功時
+        setStatus(`🌐 ネットワークから取得して表示: ${file.name}`);
         return true; // 成功
       } catch (e) {
         console.error(e);
