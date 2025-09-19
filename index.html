@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Step4.1 - today-cache.html</title>
+  <title>Step4.2 - multi-cache.html</title>
   <style>
     :root { --gap: 12px; }
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Yu Gothic UI", sans-serif; margin: 16px; }
@@ -26,7 +26,7 @@
   </style>
 </head>
 <body>
-  <h1>Step4.1: 今日表示した画像を保存して、再読み込み時はキャッシュから出す</h1>
+  <h1>Step4.2: 今日±n日を先読みキャッシュする</h1>
 
   <div class="row">
     <button id="login" disabled>Google Drive にログイン</button>
@@ -214,9 +214,47 @@
       const success = await displayByBaseName(folderId, ymd);
       if (success) {
         currentDate = date; // 画像が見つかったときだけ更新
+        prefetchAround(date, 3); // ★ ここで±3日を先読み
       }
     }
 
+    // 先読みキャッシュ: 指定日を中心に±range日をキャッシュ
+    async function prefetchAround(date, range = 3) {
+      const folderId = getSavedFolderId();
+      if (!folderId) return;
+
+      const cache = await caches.open(CACHE_NAME);
+
+      for (let offset = -range; offset <= range; offset++) {
+        if (offset === 0) continue; // 中心日は displayByDate が処理済み
+        const d = new Date(date);
+        d.setDate(d.getDate() + offset);
+        const ymd = dateToYMD(d);
+
+        // 既にキャッシュがあるならスキップ
+        if (await cache.match(ymd)) continue;
+
+        try {
+          const file = await findImageFile(folderId, ymd);
+          if (!file) continue; // 画像が存在しない日もあるので無視
+
+          const accessToken = await ensureToken();
+          const url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+          if (!resp.ok) continue;
+
+          const blob = await resp.blob();
+          const responseForCache = new Response(blob, {
+            headers: { "Content-Type": file.mimeType }
+          });
+          await cache.put(ymd, responseForCache);
+
+          console.log(`📥 先読みキャッシュ完了: ${ymd}`);
+        } catch (e) {
+          console.warn(`先読み失敗: ${ymd}`, e);
+        }
+      }
+    }
 
     async function displayToday() {
       await displayByDate(new Date());
