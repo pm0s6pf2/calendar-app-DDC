@@ -34,6 +34,7 @@
     <button id="choose" style="display:none;">フォルダを選択</button>
     <button id="showToday" style="display:none;">今日の画像を表示</button>
     <button id="checkCacheBtn" disabled>キャッシュ使用量を確認</button>
+    <div id="cacheInfo" style="margin-top:10px; font-size:14px; color:#555;"></div>
   </div>
   <!-- 日単位の移動-->
   <div id="navDay" class="row" style="display:none; margin-top:12px;">
@@ -212,18 +213,19 @@
     async function showCacheUsage() {
       const cache = await caches.open(CACHE_NAME);
       const keys = await cache.keys();
-      let total = 0;
+
+      let totalSize = 0;
       for (const req of keys) {
         const resp = await cache.match(req);
         if (resp) {
           const blob = await resp.blob();
-          total += blob.size;
+          totalSize += blob.size;
         }
       }
-      const mb = (total / (1024 * 1024)).toFixed(2);
-      console.log(`💾 キャッシュ使用量: ${mb} MB (${keys.length} ファイル)`);
-      setStatus(`キャッシュ使用量: ${mb} MB / ${keys.length} ファイル`);
+      const mb = (totalSize / (1024 * 1024)).toFixed(2);
+      document.getElementById("cacheInfo").textContent = `キャッシュ使用量: ${mb} MB (${keys.length}ファイル)`;
     }
+
 
 
     // 指定日付で画像を表示する関数
@@ -239,51 +241,42 @@
     }
 
     // 先読みキャッシュ: 指定日を中心に±range日をキャッシュ
-    async function prefetchAround(date, range = 3) {
-      const folderId = getSavedFolderId();
-      if (!folderId) return;
-
+    async function prefetchAround(folderId, centerDateStr, range = 3) {
       const cache = await caches.open(CACHE_NAME);
-
-      const file = await findImageFile(folderId, ymd);
-      if (!file) {
-        console.log(`🚫 ${ymd}: 画像なし`);
-      }
-
+      const centerDate = new Date(centerDateStr);
 
       for (let offset = -range; offset <= range; offset++) {
-        if (offset === 0) continue; // 中心日は displayByDate が処理済み
-        const d = new Date(date);
-        d.setDate(d.getDate() + offset);
-        const ymd = dateToYMD(d);
+        const d = new Date(centerDate);
+        d.setDate(centerDate.getDate() + offset);
+        const ymd = d.toISOString().slice(0, 10); // YYYY-MM-DD
 
-        // 既にキャッシュがあるならスキップ
-        if (await cache.match(ymd)) continue;
-
-        try {
-          const file = await findImageFile(folderId, ymd);
-          if (!file) continue; // 画像が存在しない日もあるので無視
-
-          const accessToken = await ensureToken();
-          const url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
-          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-          if (!resp.ok) continue;
-
-          const blob = await resp.blob();
-          const responseForCache = new Response(blob, {
-            headers: { "Content-Type": file.mimeType }
-          });
-          await cache.put(ymd, responseForCache);
-
-          console.log(`📥 先読みキャッシュ完了: ${ymd}`);
-        } catch (e) {
-          console.warn(`先読み失敗: ${ymd}`, e);
+        // キャッシュ確認
+        const cachedResponse = await cache.match(ymd);
+        if (cachedResponse) {
+          console.log(`📦 ${ymd}: キャッシュ済み`);
+          continue;
         }
-      }
-    }
 
-    async function displayToday() {
-      await displayByDate(new Date());
+        // Google Drive から取得
+        const file = await findImageFile(folderId, ymd);
+        if (!file) {
+          console.log(`🚫 ${ymd}: 画像なし`);
+          continue;
+        }
+
+        const accessToken = await ensureToken();
+        const url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+        const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+        if (!resp.ok) {
+          console.log(`⚠️ ${ymd}: 取得失敗 ${resp.status}`);
+          continue;
+        }
+
+        // キャッシュ保存
+        await cache.put(ymd, resp.clone());
+        console.log(`✅ ${ymd}: キャッシュ保存`);
+      }
     }
 
     function openFolderPicker() {
