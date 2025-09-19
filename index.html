@@ -248,7 +248,6 @@
       const file = await findImageFile(folderId, ymd);
       if (!file) {
         console.log(`🚫 ${ymd}: 画像なし`);
-        continue; // 画像が存在しない日もあるのでスキップ
       }
 
 
@@ -437,8 +436,8 @@
   </script>
 
   <!-- Google API -->
-  <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()" async defer></script>
+  <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
   <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
+  <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
