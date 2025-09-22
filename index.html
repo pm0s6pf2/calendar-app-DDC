@@ -237,8 +237,14 @@
       const success = await displayByBaseName(folderId, ymd);
       if (success) {
         currentDate = date; // 画像が見つかったときだけ更新
-        prefetchAround(date, 3); // ★ ここで±3日を先読み
+        prefetchAround(folderId, date, 3); // ★ ここで±3日を先読み
       }
+    }
+
+    // 今日の画像を表示する
+    async function displayToday() {
+      const today = new Date();
+      displayBydate(today);
     }
 
     // 先読みキャッシュ: 指定日を中心に±range日をキャッシュ
