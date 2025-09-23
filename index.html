@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Step4.2 - multi-cache.html</title>
+  <title>step4.3_cache-clear.html</title>
   <style>
     :root { --gap: 12px; }
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Yu Gothic UI", sans-serif; margin: 16px; }
@@ -26,7 +26,7 @@
   </style>
 </head>
 <body>
-  <h1>Step4.2: 今日±n日を先読みキャッシュする</h1>
+  <h1>Step4.3: キャッシュをクリアする</h1>
 
   <div class="row">
     <button id="login" disabled>Google Drive にログイン</button>
@@ -297,23 +297,40 @@
     // キャッシュクリア関数
     async function clearCache(){
       if (!confirm("本当にキャッシュをすべて削除しますか？")) return;
+      const btn = document.getElementById("clearCacheBtn");
+      btn.disabled = true;
 
-      try {
-        const cache = await caches.open(CACHE_NAME);
-        const keys = await cache.keys();
-        for (const req of keys){
-          await cache.delete(req);
+        try {
+          // 簡単確実にキャッシュ丸ごと削除（存在すれば true を返す）
+          const deleted = await caches.delete(CACHE_NAME);
+          if (!deleted) {
+            // cache が存在しなかった場合は open して中身を個別削除（保険）
+            const cache = await caches.open(CACHE_NAME);
+            const keys = await cache.keys();
+            for (const req of keys) {
+              await cache.delete(req);
+            }
+          }
+
+          // 表示中の Blob URL を解除して画像表示をクリア
+          clearImage(); // <-- 正しい関数名
+
+          // UI のキャッシュ情報を正しく再表示
+          await showCacheUsage();
+
+          setStatus("✅ キャッシュを削除しました");
+        } catch (e) {
+          console.error("clearCache error:", e);
+          setStatus("エラー: キャッシュ削除に失敗しました — " + (e.message || e), true);
+        } finally {
+          btn.disabled = false;
         }
-        setStatus("✅ キャッシュを削除しました");
-        document.getElementById("cacheInfo").textContent = "キャッシュ使用料: 0MB (0ファイル)";
-        cleaeImage(); //表示中の画像もクリア
-      } catch (e) {
-        console.error(e);
-        setStatus("エラー: キャッシュ削除に失敗しました", true);
       }
-    }
 
-    document.getElementById("clearCacheBtn").addEventListener("click", clearCache);
+      // イベント登録（DOMContentLoaded 内に入れるのが安全）
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("clearCacheBtn").addEventListener("click", clearCache);
+      });
 
     async function loadFolderList() {
       try {
