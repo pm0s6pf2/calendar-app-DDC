@@ -250,7 +250,7 @@
     // 先読みキャッシュ: 指定日を中心に±range日をキャッシュ
     async function prefetchAround(folderId, centerDateStr, range = 3) {
       const cache = await caches.open(CACHE_NAME);
-      const centerDate = new Date(centerDateStr);
+      const centerDate = (centerDateStr instanceof Date) ? centerDateStr : new Date(centerDateStr);
 
       for (let offset = -range; offset <= range; offset++) {
         const d = new Date(centerDate);
