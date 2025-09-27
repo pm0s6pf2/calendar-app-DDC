@@ -23,6 +23,7 @@
     #overlay.show { display: flex; }
     #filename { margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .muted { color: #666; font-size: .9rem; }
+    #clearCacheBtn {background: #f8d7da;    border: 1px solid#f5c2c7; color:#842029}
   </style>
 </head>
 <body>
@@ -33,28 +34,24 @@
     <button id="logout" style="display:none;">ログアウト</button>
     <button id="choose" style="display:none;">フォルダを選択</button>
     <button id="showToday" style="display:none;">今日の画像を表示</button>
-    <button id="checkCacheBtn" disabled>キャッシュ使用量を確認</button>
   </div>
 
   <div class="row" style="margin-top:12px;">
+    <button id="checkCacheBtn" disabled>キャッシュ使用量を確認</button>
     <button id="clearCacheBtn">キャッシュをクリア</button>
   </div>
 
-  <!-- 日単位の移動-->
-  <div id="navDay" class="row" style="display:none; margin-top:12px;">
-    <button id="prevDay">◀ 昨日</button>
-    <button id="nextDay">明日 ▶</button>
-  </div>
-
-  <!--年単位の移動-->
-  <div id="navYear" class="row" style="display:none; margin-top:12px;">
+  <div id="navAll" class="row" style="display:none; margin-top:12px;">
     <button id="prevYear">⏪ 昨年</button>
+    <button id="prevDay">◀ 昨日</button>
+    <button id="showToday">今日</button>
+    <button id="nextDay">明日 ▶</button>
     <button id="nextYear">来年 ⏩</button>
   </div>
 
+  <div id="remembered" class="muted"></div>
   <div id="cacheInfo" style="margin-top:10px; font-size:14px; color:#555;"></div>
-
-  <div id="status" class="muted">未ログイン</div>
+  <div id="status" class="muted"></div>
 
   <div id="picker" class="row">
     <select id="folderList" aria-label="フォルダ一覧"></select>
@@ -228,9 +225,14 @@
           totalSize += blob.size;
         }
       }
-      const mb = (totalSize / (1024 * 1024)).toFixed(2);
-      document.getElementById("cacheInfo").textContent = `キャッシュ使用量: ${mb} MB (${keys.length}ファイル)`;
+      if (keys.length === 0) {
+        $("#cacheInfo").textContent = "キャッシュは空です";
+      } else {
+        const mb = (totalSize / (1024 * 1024)).toFixed(2);
+        $("#cacheInfo").textContent = `キャッシュ使用量: ${mb} MB (${keys.length}ファイル)`;
+      }
     }
+
 
     // 指定日付で画像を表示する関数
     async function displayByDate(date) {
@@ -241,6 +243,7 @@
       if (success) {
         currentDate = date; // 画像が見つかったときだけ更新
         prefetchAround(folderId, date, 3); // ★ ここで±3日を先読み
+        await showCacheUsage();
       }
     }
 
@@ -297,35 +300,24 @@
     // キャッシュクリア関数
     async function clearCache(){
       if (!confirm("本当にキャッシュをすべて削除しますか？")) return;
-      const btn = document.getElementById("clearCacheBtn");
+      const btn = $("#clearCacheBtn");
       btn.disabled = true;
-
-        try {
-          // 簡単確実にキャッシュ丸ごと削除（存在すれば true を返す）
-          const deleted = await caches.delete(CACHE_NAME);
-          if (!deleted) {
-            // cache が存在しなかった場合は open して中身を個別削除（保険）
-            const cache = await caches.open(CACHE_NAME);
-            const keys = await cache.keys();
-            for (const req of keys) {
-              await cache.delete(req);
-            }
-          }
-
-          // 表示中の Blob URL を解除して画像表示をクリア
-          clearImage(); // <-- 正しい関数名
-
-          // UI のキャッシュ情報を正しく再表示
-          await showCacheUsage();
-
-          setStatus("✅ キャッシュを削除しました");
-        } catch (e) {
-          console.error("clearCache error:", e);
-          setStatus("エラー: キャッシュ削除に失敗しました — " + (e.message || e), true);
-        } finally {
-          btn.disabled = false;
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const keys = await cache.keys();
+        for (const req of keys) {
+          // 表示中の画像は削除対象から外す
+          if (req.url.endsWith(dateToYMD(currentDate))) continue;
+          await cache.delete(req);
         }
+        await showCacheUsage();
+        setStatus("✅ キャッシュを削除しました");
+      } catch (e) {
+        setStatus("エラー: " + e.message, true);
+      } finally {
+        btn.disabled = false;
       }
+    }
 
       // イベント登録（DOMContentLoaded 内に入れるのが安全）
       document.addEventListener("DOMContentLoaded", () => {
@@ -361,6 +353,9 @@
       $("#logout").style.display = "inline-block";
       $("#choose").style.display = "inline-block";
       $("#showToday").style.display = "inline-block";
+
+      $("#checkCacheBtn").disabled = false;
+      $("#clearCacheBtn").disabled = false;
 
       const saved = getSavedFolderId();
       if (saved) {
@@ -410,9 +405,11 @@
       $("#choose").addEventListener("click", openFolderPicker);
       $("#saveFolder").addEventListener("click", () => {
         const id = $("#folderList").value;
+        const name = $("#folderList option:checked").textContent;
         if (!id) { setStatus("フォルダを選択してください", true); return; }
         localStorage.setItem("selectedFolderId", id);
-        $("#remembered").textContent = `選択中フォルダID: ${id}`;
+        localStorage.setItem("selectedFolderName", name);
+        $("#remembered").textContent = `選択中フォルダ名: ${name}`;
         $("#picker").style.display = "none";
         displayToday();
       });
