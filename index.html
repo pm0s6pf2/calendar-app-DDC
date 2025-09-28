@@ -107,7 +107,8 @@
       $("#filename").textContent = "";
       hideOverlay();
     }
-    function getSavedFolderId() { return localStorage.getItem("selectedFolderId"); }
+    function getSavedFolderId() {
+      return localStorage.getItem("selectedFolderId"); }
     function dateToYMD(date) {
       const parts = new Intl.DateTimeFormat("en-CA", {
         timeZone: TIMEZONE,
@@ -359,15 +360,15 @@
 
       const saved = getSavedFolderId();
       if (saved) {
-        $("#remembered").textContent = `選択中フォルダID: ${saved}`;
+        const savedName = localStorage.getItem("selectedFolderName") || "(名前不明)";
+        $("remembered").textContent = '📂フォルダ：${savedName}';
         displayToday();
       } else {
         openFolderPicker();
       }
 
-      ["navDay","navYear"].forEach(id => {
-      document.getElementById(id).style.display = "flex";
-      });
+      document.getElementById("navAll").style.display = "flex";
+
     }
 
     // ====== イベント割り当て ======
