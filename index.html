@@ -38,7 +38,7 @@
 
   <div id="CacheAll" class="row" style="margin-top:12px;">
     <button id="checkCacheBtn" disabled>キャッシュ使用量を確認</button>
-    <button id="clearCacheBtn">キャッシュをクリア</button>
+    <button id="clearCacheBtn" disabled>キャッシュをクリア</button>
   </div>
 
   <div id="navAll" class="row" style="display:none; margin-top:12px;">
@@ -355,7 +355,8 @@
       $("#choose").style.display = "inline-block";
       $("#showToday").style.display = "inline-block";
 
-      $("#CacheAll").disabled = false;
+      $("#checkCacheBtn").disabled = false;
+      $("#clearCacheBtn").disabled = false;
       document.getElementById("navAll").style.display = "flex";
 
       const saved = getSavedFolderId();
@@ -399,6 +400,9 @@
         $("#picker").style.display = "none";
         $("#remembered").textContent = "";
         clearImage();
+
+        $("#checkCacheBtn").disabled = true;
+        $("#clearCacheBtn").disabled = true;        
       });
 
       $("#choose").addEventListener("click", openFolderPicker);
