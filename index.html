@@ -36,7 +36,7 @@
     <button id="showToday" style="display:none;">今日の画像を表示</button>
   </div>
 
-  <div class="row" style="margin-top:12px;">
+  <div id="CacheAll" class="row" style="margin-top:12px;">
     <button id="checkCacheBtn" disabled>キャッシュ使用量を確認</button>
     <button id="clearCacheBtn">キャッシュをクリア</button>
   </div>
@@ -355,14 +355,13 @@
       $("#choose").style.display = "inline-block";
       $("#showToday").style.display = "inline-block";
 
-      $("#checkCacheBtn").disabled = false;
-      $("#clearCacheBtn").disabled = false;
+      $("#CacheAll").disabled = false;
       document.getElementById("navAll").style.display = "flex";
 
       const saved = getSavedFolderId();
       if (saved) {
         const savedName = localStorage.getItem("selectedFolderName") || "(名前不明)";
-        $("remembered").textContent = '📂フォルダ：${savedName}';
+        $("#remembered").textContent =`📂フォルダ: ${savedName}`;
         displayToday();
       } else {
         openFolderPicker();
