@@ -357,6 +357,7 @@
 
       $("#checkCacheBtn").disabled = false;
       $("#clearCacheBtn").disabled = false;
+      document.getElementById("navAll").style.display = "flex";
 
       const saved = getSavedFolderId();
       if (saved) {
@@ -366,8 +367,6 @@
       } else {
         openFolderPicker();
       }
-
-      document.getElementById("navAll").style.display = "flex";
 
     }
 
