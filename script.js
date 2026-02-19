@@ -11,6 +11,13 @@ let gapiReady = false;
 let gisReady = false;
 let lastObjectURL = null; // 直前の Blob URL を保持（失敗時は前の画像を残す）
 let currentDate = new Date(); //今表示している日付
+// ====== スライド用 ======
+let slideDates = [];
+let slideIndex = 0;
+let slideTimer = null;
+let slideDirection = 1;
+let slideSpeed = 2000;
+
 
 // ====== ユーティリティ ======
 const $ = (sel) => document.querySelector(sel);
@@ -139,6 +146,14 @@ async function displayByBaseName(folderId, baseName) {
     setStatus("エラー: " + e.message, true);
     showOverlay("通信に失敗しました。再試行してください。");
     return false;
+
+    const img = $("#photo");
+    img.classList.add("fade-out");
+    setTimeout(() => {
+        img.src = lastObjectURL;
+        img.classList.remove("fade-out");
+        img.classList.add("fade-in");
+    }, 200);
     }
 }
 
@@ -171,9 +186,13 @@ async function displayByDate(date) {
     const ymd = dateToYMD(date);
     const success = await displayByBaseName(folderId, ymd);
     if (success) {
-    currentDate = date; // 画像が見つかったときだけ更新
-    prefetchAround(folderId, date, 3); // ★ ここで±3日を先読み
-    await showCacheUsage();
+        currentDate = date; // 画像が見つかったときだけ更新
+        prefetchAround(folderId, date, 3); // ★ ここで±3日を先読み
+        // 👇 スライド中でなければ先読み
+        if (!slideTimer) {
+            prefetchAround(folderId, date, 3);
+        }    
+        await showCacheUsage();
     }
 }
 
@@ -253,6 +272,14 @@ async function clearCache(){
     document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("clearCacheBtn").addEventListener("click", clearCache);
     });
+
+    // スライドショー用のイベント登録
+    document.addEventListener("DOMContentLoaded", () => {
+    $("#slideAsc").addEventListener("click", () => startSlideshow(1));
+    $("#slideDesc").addEventListener("click", () => startSlideshow(-1));
+    $("#slideStop").addEventListener("click", stopSlideshow);
+    });
+
 
 async function loadFolderList() {
     try {
@@ -409,11 +436,6 @@ function enableLoginIfReady() {
     }
 }
 
-$("#slideAsc").addEventListener("click", () => startSlideshow(1));
-$("#slideDesc").addEventListener("click", () => startSlideshow(-1));
-$("#slideStop").addEventListener("click", stopSlideshow);
-
-
 async function findSameMonthDayFiles(folderId, monthDay) {
   const res = await gapi.client.drive.files.list({
     q: `'${folderId}' in parents and name contains '${monthDay}' and trashed=false`,
@@ -434,6 +456,7 @@ async function startSlideshow(direction = 1) {
   const folderId = getSavedFolderId();
   const monthDay = dateToYMD(currentDate).slice(5); // MM-DD
   const files = await findSameMonthDayFiles(folderId, monthDay);
+    document.getElementById("navAll").style.display = "none";
 
   if (files.length === 0) {
     alert("画像が見つかりません");
@@ -459,7 +482,7 @@ async function startSlideshow(direction = 1) {
     if (slideIndex < 0) slideIndex = slideDates.length - 1;
     if (slideIndex >= slideDates.length) slideIndex = 0;
     await displayByBaseName(folderId, slideDates[slideIndex]);
-  }, 2000);
+  }, slideSpeed);
 }
 
 function stopSlideshow() {
@@ -467,4 +490,15 @@ function stopSlideshow() {
     clearInterval(slideTimer);
     slideTimer = null;
   }
+  document.getElementById("navAll").style.display = "flex";
 }
+
+$("#speedSelect").addEventListener("change", (e)=>{
+  slideSpeed = Number(e.target.value);
+
+  // 動作中なら再スタート
+  if (slideTimer) {
+    stopSlideshow();
+    startSlideshow(slideDirection);
+  }
+});
