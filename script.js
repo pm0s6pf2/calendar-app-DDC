@@ -17,6 +17,7 @@ let slideIndex = 0;
 let slideTimer = null;
 let slideDirection = 1;
 let slideSpeed = 2000;
+let monthDayCache = {};
 
 
 // ====== ユーティリティ ======
@@ -146,15 +147,6 @@ async function displayByBaseName(folderId, baseName) {
     setStatus("エラー: " + e.message, true);
     showOverlay("通信に失敗しました。再試行してください。");
     return false;
-
-    const img = $("#photo");
-    img.classList.add("fade-out");
-    setTimeout(() => {
-        img.src = lastObjectURL;
-        img.classList.remove("fade-out");
-        img.classList.add("fade-in");
-    }, 200);
-    }
 }
 
 // キャッシュ使用量を計算して表示
@@ -189,9 +181,6 @@ async function displayByDate(date) {
         currentDate = date; // 画像が見つかったときだけ更新
         prefetchAround(folderId, date, 3); // ★ ここで±3日を先読み
         // 👇 スライド中でなければ先読み
-        if (!slideTimer) {
-            prefetchAround(folderId, date, 3);
-        }    
         await showCacheUsage();
     }
 }
@@ -313,7 +302,7 @@ function afterLogin() {
 
     $("#checkCacheBtn").disabled = false;
     $("#clearCacheBtn").disabled = false;
-    document.getElementById("navAll").style.display = "flex";
+    document.getElementById("navAll").style.display = "block";
 
     const saved = getSavedFolderId();
     if (saved) {
@@ -341,41 +330,42 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     $("#logout").addEventListener("click", () => {
-    try {
-        google.accounts.oauth2.revoke(gapi.client.getToken()?.access_token || "", () => {});
-    } catch (e) {
-        console.warn("revoke でエラー:", e);
-    }
-    gapi.client.setToken("");
-    setStatus("未ログイン");
-    $("#login").style.display = "inline-block";
-    $("#login").disabled = false;
-    $("#logout").style.display = "none";
-    $("#choose").style.display = "none";
-    $("#showToday").style.display = "none";
-    $("#picker").style.display = "none";
-    $("#remembered").textContent = "";
-    clearImage();
+        monthDayCache = {};
+        try {
+            google.accounts.oauth2.revoke(gapi.client.getToken()?.access_token || "", () => {});
+        } catch (e) {
+            console.warn("revoke でエラー:", e);
+        }
+        gapi.client.setToken("");
+        setStatus("未ログイン");
+        $("#login").style.display = "inline-block";
+        $("#login").disabled = false;
+        $("#logout").style.display = "none";
+        $("#choose").style.display = "none";
+        $("#showToday").style.display = "none";
+        $("#picker").style.display = "none";
+        $("#remembered").textContent = "";
+        clearImage();
 
-    $("#checkCacheBtn").disabled = true;
-    $("#clearCacheBtn").disabled = true;        
+        $("#checkCacheBtn").disabled = true;
+        $("#clearCacheBtn").disabled = true;        
     });
 
-    $("#choose").addEventListener("click", openFolderPicker);
-    $("#saveFolder").addEventListener("click", () => {
-    const id = $("#folderList").value;
-    const name = $("#folderList option:checked").textContent;
-    if (!id) { setStatus("フォルダを選択してください", true); return; }
-    localStorage.setItem("selectedFolderId", id);
-    localStorage.setItem("selectedFolderName", name);
-    $("#remembered").textContent = `選択中フォルダ名: ${name}`;
-    $("#picker").style.display = "none";
-    displayToday();
-    });
+        $("#choose").addEventListener("click", openFolderPicker);
+        $("#saveFolder").addEventListener("click", () => {
+            const id = $("#folderList").value;
+            const name = $("#folderList option:checked").textContent;
+            if (!id) { setStatus("フォルダを選択してください", true); return; }
+            localStorage.setItem("selectedFolderId", id);
+            localStorage.setItem("selectedFolderName", name);
+            $("#remembered").textContent = `選択中フォルダ名: ${name}`;
+            $("#picker").style.display = "none";
+            displayToday();
+        });
 
-    const viewport = document.querySelector(".viewport");
-    viewport.addEventListener("click", () => {
-    viewport.classList.toggle("fullscreen");
+        const viewport = document.querySelector(".viewport");
+        viewport.addEventListener("click", () => {
+        viewport.classList.toggle("fullscreen");
     });
 
 
@@ -437,16 +427,20 @@ function enableLoginIfReady() {
 }
 
 async function findSameMonthDayFiles(folderId, monthDay) {
+  const cacheKey = folderId + "_" + monthDay;
+  if (monthDayCache[cacheKey]) {
+    console.log("📦 月日一覧キャッシュ使用");
+    return monthDayCache[cacheKey];
+  }
   const res = await gapi.client.drive.files.list({
     q: `'${folderId}' in parents and name contains '${monthDay}' and trashed=false`,
     fields: "files(id,name,modifiedTime)",
     pageSize: 100,
   });
   const files = res.result.files || [];
-  // 年でソート
-  files.sort((a,b)=>{
-    return a.name.localeCompare(b.name);
-  });
+  files.sort((a,b)=>a.name.localeCompare(b.name));
+  monthDayCache[cacheKey] = files; // ★ 保存
+  console.log("🌐 Driveから月日一覧取得");
   return files;
 }
 
@@ -456,7 +450,7 @@ async function startSlideshow(direction = 1) {
   const folderId = getSavedFolderId();
   const monthDay = dateToYMD(currentDate).slice(5); // MM-DD
   const files = await findSameMonthDayFiles(folderId, monthDay);
-    document.getElementById("navAll").style.display = "none";
+    document.getElementById("navAll").classList.remove("hidden");
 
   if (files.length === 0) {
     alert("画像が見つかりません");
