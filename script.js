@@ -408,3 +408,63 @@ function enableLoginIfReady() {
     setStatus("準備完了");
     }
 }
+
+$("#slideAsc").addEventListener("click", () => startSlideshow(1));
+$("#slideDesc").addEventListener("click", () => startSlideshow(-1));
+$("#slideStop").addEventListener("click", stopSlideshow);
+
+
+async function findSameMonthDayFiles(folderId, monthDay) {
+  const res = await gapi.client.drive.files.list({
+    q: `'${folderId}' in parents and name contains '${monthDay}' and trashed=false`,
+    fields: "files(id,name,modifiedTime)",
+    pageSize: 100,
+  });
+  const files = res.result.files || [];
+  // 年でソート
+  files.sort((a,b)=>{
+    return a.name.localeCompare(b.name);
+  });
+  return files;
+}
+
+
+//スライド開始関数
+async function startSlideshow(direction = 1) {
+  const folderId = getSavedFolderId();
+  const monthDay = dateToYMD(currentDate).slice(5); // MM-DD
+  const files = await findSameMonthDayFiles(folderId, monthDay);
+
+  if (files.length === 0) {
+    alert("画像が見つかりません");
+    return;
+  }
+
+  // 年でソート（自動的に最古→最新）
+  files.sort((a,b)=>a.name.localeCompare(b.name));
+  slideDates = files.map(f =>
+    f.name.replace(/\.(png|jpg|jpeg)$/,'')
+  );
+
+  const currentBase = dateToYMD(currentDate);
+  slideIndex = slideDates.indexOf(currentBase);
+
+  // 現在の画像が一覧に無い場合
+  if (slideIndex === -1) slideIndex = 0;
+  slideDirection = direction;
+  stopSlideshow(); // 二重起動防止
+  slideTimer = setInterval(async () => {
+    slideIndex += slideDirection;
+    // 🔁 ここが循環処理
+    if (slideIndex < 0) slideIndex = slideDates.length - 1;
+    if (slideIndex >= slideDates.length) slideIndex = 0;
+    await displayByBaseName(folderId, slideDates[slideIndex]);
+  }, 2000);
+}
+
+function stopSlideshow() {
+  if (slideTimer) {
+    clearInterval(slideTimer);
+    slideTimer = null;
+  }
+}
