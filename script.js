@@ -309,7 +309,6 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#slideStop").addEventListener("click", stopSlideshow);
     $("#clearCacheBtn").addEventListener("click", clearCache);
     $("#checkCacheBtn").addEventListener("click", showCacheUsage);
-    document.getElementById("checkCacheBtn").addEventListener("click", showCacheUsage);
 
     $("#login").addEventListener("click", () => {
     tokenClient.callback = (resp) => {
