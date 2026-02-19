@@ -447,10 +447,10 @@ async function findSameMonthDayFiles(folderId, monthDay) {
 
 //スライド開始関数
 async function startSlideshow(direction = 1) {
+  document.getElementById("navAll").style.display = "none";
   const folderId = getSavedFolderId();
   const monthDay = dateToYMD(currentDate).slice(5); // MM-DD
   const files = await findSameMonthDayFiles(folderId, monthDay);
-    document.getElementById("navAll").classList.remove("hidden");
 
   if (files.length === 0) {
     alert("画像が見つかりません");
@@ -480,6 +480,7 @@ async function startSlideshow(direction = 1) {
 }
 
 function stopSlideshow() {
+  document.getElementById("navAll").style.display = "flex";
   if (slideTimer) {
     clearInterval(slideTimer);
     slideTimer = null;
