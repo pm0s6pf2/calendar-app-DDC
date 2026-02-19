@@ -461,6 +461,7 @@ async function startSlideshow(direction = 1) {
   if (slideIndex === -1) slideIndex = 0;
   slideDirection = direction;
   stopSlideshow(); // 二重起動防止
+  document.getElementById("navAll").style.display = "none";
   slideTimer = setInterval(async () => {
     slideIndex += slideDirection;
     // 🔁 ここが循環処理
@@ -471,7 +472,6 @@ async function startSlideshow(direction = 1) {
 }
 
 function stopSlideshow() {
-  document.getElementById("navAll").style.display = "flex";
   if (slideTimer) {
     clearInterval(slideTimer);
     slideTimer = null;
