@@ -139,8 +139,7 @@ async function displayByBaseName(folderId, baseName) {
     $("#filename").textContent = `${file.name}（最終更新: ${new Date(file.modifiedTime).toLocaleString('ja-JP', { timeZone: TIMEZONE })}）`;
     // Driveから新規取得成功時
     setStatus(`🌐 ネットワークから取得して表示: ${file.name}`);
-    await showCacheUsage(); // ← キャッシュ状況を更新
-    return true;       
+    await showCacheUsage(); // ← キャッシュ状況を更新   
     return true; // 成功
     } catch (e) {
     console.error(e);
@@ -257,19 +256,6 @@ async function clearCache(){
     }
 }
 
-    // イベント登録（DOMContentLoaded 内に入れるのが安全）
-    document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("clearCacheBtn").addEventListener("click", clearCache);
-    });
-
-    // スライドショー用のイベント登録
-    document.addEventListener("DOMContentLoaded", () => {
-    $("#slideAsc").addEventListener("click", () => startSlideshow(1));
-    $("#slideDesc").addEventListener("click", () => startSlideshow(-1));
-    $("#slideStop").addEventListener("click", stopSlideshow);
-    });
-
-
 async function loadFolderList() {
     try {
     const res = await gapi.client.drive.files.list({
@@ -302,7 +288,7 @@ function afterLogin() {
 
     $("#checkCacheBtn").disabled = false;
     $("#clearCacheBtn").disabled = false;
-    document.getElementById("navAll").style.display = "block";
+    document.getElementById("navAll").style.display = "flex";
 
     const saved = getSavedFolderId();
     if (saved) {
@@ -317,6 +303,13 @@ function afterLogin() {
 
 // ====== イベント割り当て ======
 document.addEventListener("DOMContentLoaded", () => {
+    $("#slideAsc").addEventListener("click", () => startSlideshow(1));
+    $("#slideDesc").addEventListener("click", () => startSlideshow(-1));
+    $("#slideStop").addEventListener("click", stopSlideshow);
+    $("#clearCacheBtn").addEventListener("click", clearCache);
+    $("#checkCacheBtn").addEventListener("click", showCacheUsage);
+    document.getElementById("checkCacheBtn").addEventListener("click", showCacheUsage);
+
     $("#login").addEventListener("click", () => {
     tokenClient.callback = (resp) => {
         if (resp.error) {
@@ -395,8 +388,6 @@ document.addEventListener("DOMContentLoaded", () => {
     displayByDate(d);
     });
 });
-
-document.getElementById("checkCacheBtn").addEventListener("click", showCacheUsage);
 
 // ====== Google API 初期化 ======
 function gapiLoaded() {
