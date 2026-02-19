@@ -146,6 +146,7 @@ async function displayByBaseName(folderId, baseName) {
     setStatus("エラー: " + e.message, true);
     showOverlay("通信に失敗しました。再試行してください。");
     return false;
+    }
 }
 
 // キャッシュ使用量を計算して表示
