@@ -346,6 +346,12 @@ document.addEventListener("DOMContentLoaded", () => {
     displayToday();
     });
 
+    const viewport = document.querySelector(".viewport");
+    viewport.addEventListener("click", () => {
+    viewport.classList.toggle("fullscreen");
+    });
+
+
     $("#showToday").addEventListener("click", displayToday);
 
     $("#prevDay").addEventListener("click", () => {
