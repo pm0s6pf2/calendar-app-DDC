@@ -4,6 +4,7 @@ const CLIENT_ID = "432542663306-gajl9s636n960rmul1a630e2k9lchdl3.apps.googleuser
 const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
 const TIMEZONE = "Asia/Tokyo"; // テスト項目でのタイムゾーンズレ対策
 const CACHE_NAME = "image-cache-v1" ;
+const nav = document.getElementById("navAll");
 
 // ====== 状態 ======
 let tokenClient;
@@ -18,7 +19,7 @@ let slideTimer = null;
 let slideDirection = 1;
 let slideSpeed = 2000;
 let monthDayCache = {};
-
+let isSlideshowRunning = false;
 
 // ====== ユーティリティ ======
 const $ = (sel) => document.querySelector(sel);
@@ -289,7 +290,7 @@ function afterLogin() {
 
     $("#checkCacheBtn").disabled = false;
     $("#clearCacheBtn").disabled = false;
-    document.getElementById("navAll").style.display = "flex";
+    nav.classList.remove("hidden"); // 表示
 
     const saved = getSavedFolderId();
     if (saved) {
@@ -438,46 +439,64 @@ async function findSameMonthDayFiles(folderId, monthDay) {
 
 //スライド開始関数
 async function startSlideshow(direction = 1) {
-  document.getElementById("navAll").style.display = "none";
-  const folderId = getSavedFolderId();
-  const monthDay = dateToYMD(currentDate).slice(5); // MM-DD
-  const files = await findSameMonthDayFiles(folderId, monthDay);
+  // すでに動いていたら何もしない
+  await prefetchSlideshowImages(folderId, slideDates);
+    async function prefetchSlideshowImages(folderId, baseNames) {
+    const cache = await caches.open(CACHE_NAME);
+    for (const baseName of baseNames) {
+        const cached = await cache.match(baseName);
+        if (cached) continue;
+        const file = await findImageFile(folderId, baseName);
+        if (!file) continue;
+        const accessToken = await ensureToken();
+        const url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+        const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!resp.ok) continue;
+        await cache.put(baseName, resp.clone());
+        console.log(`📦 スライド用事前取得: ${baseName}`);
+    }
+    }
 
+  if (isSlideshowRunning) return;
+  isSlideshowRunning = true; // ★ 開始状態にする
+  nav.classList.add("hidden");   // 非表示
+  const folderId = getSavedFolderId();
+  const monthDay = dateToYMD(currentDate).slice(5);
+  const files = await findSameMonthDayFiles(folderId, monthDay);
   if (files.length === 0) {
     alert("画像が見つかりません");
+    isSlideshowRunning = false; // ★ 失敗時は戻す
+    nav.classList.remove("hidden"); // 表示
     return;
   }
-
-  // 年でソート（自動的に最古→最新）
   files.sort((a,b)=>a.name.localeCompare(b.name));
   slideDates = files.map(f =>
     f.name.replace(/\.(png|jpg|jpeg)$/,'')
   );
-
   const currentBase = dateToYMD(currentDate);
   slideIndex = slideDates.indexOf(currentBase);
-
-  // 現在の画像が一覧に無い場合
   if (slideIndex === -1) slideIndex = 0;
   slideDirection = direction;
-  stopSlideshow(); // 二重起動防止
-  document.getElementById("navAll").style.display = "none";
   slideTimer = setInterval(async () => {
     slideIndex += slideDirection;
-    // 🔁 ここが循環処理
     if (slideIndex < 0) slideIndex = slideDates.length - 1;
     if (slideIndex >= slideDates.length) slideIndex = 0;
     await displayByBaseName(folderId, slideDates[slideIndex]);
+    currentDate = new Date(base);
   }, slideSpeed);
 }
 
+
 function stopSlideshow() {
-  if (slideTimer) {
-    clearInterval(slideTimer);
-    slideTimer = null;
-  }
-  document.getElementById("navAll").style.display = "flex";
+  if (!isSlideshowRunning) return;
+  clearInterval(slideTimer);
+  slideTimer = null;
+  isSlideshowRunning = false; // ★ 停止状態に戻す
+  nav.classList.remove("hidden"); // 表示
 }
+
 
 $("#speedSelect").addEventListener("change", (e)=>{
   slideSpeed = Number(e.target.value);
