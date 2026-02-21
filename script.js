@@ -456,13 +456,15 @@ async function prefetchSlideshowImages(folderId, baseNames) {
 }
 
 //スライド開始関数
-// ====== スライド開始 ======
 async function startSlideshow(direction = 1) {
   if (isSlideshowRunning) return;
-  const folderId = getSavedFolderId();
-  if (!folderId) return;
+  const savedFolderId = getSavedFolderId(); // ← 変数名変更
+  if (!savedFolderId) {
+    alert("フォルダを選択してください");
+    return;
+  }
   const monthDay = dateToYMD(currentDate).slice(5);
-  const files = await findSameMonthDayFiles(folderId, monthDay);
+  const files = await findSameMonthDayFiles(savedFolderId, monthDay);
   if (files.length === 0) {
     alert("画像が見つかりません");
     return;
@@ -474,9 +476,7 @@ async function startSlideshow(direction = 1) {
   slideIndex = slideDates.indexOf(currentBase);
   if (slideIndex === -1) slideIndex = 0;
   slideDirection = direction;
-
-  // ★ ここでスライド画像を事前読み込み
-  await prefetchSlideshowImages(folderId, slideDates);
+  await prefetchSlideshowImages(savedFolderId, slideDates);
   isSlideshowRunning = true;
   nav.classList.add("hidden");
   slideTimer = setInterval(async () => {
@@ -484,8 +484,7 @@ async function startSlideshow(direction = 1) {
     if (slideIndex < 0) slideIndex = slideDates.length - 1;
     if (slideIndex >= slideDates.length) slideIndex = 0;
     const base = slideDates[slideIndex];
-    await displayByBaseName(folderId, base);
-    // ★ 内部日付を更新（超重要）
+    await displayByBaseName(savedFolderId, base);
     currentDate = new Date(base);
   }, slideSpeed);
 }
