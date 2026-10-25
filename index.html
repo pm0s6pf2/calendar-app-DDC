@@ -1,75 +1,10 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Step7: スライドショー機能の追加</title>
-
-  <!-- CSSを読み込む -->
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-  <h1>Step7: スライドショー機能の追加</h1>
-
-  <div class="row">
-    <button id="login" disabled>Google Drive にログイン</button>
-    <button id="logout" style="display:none;">ログアウト</button>
-    <button id="choose" style="display:none;">フォルダを選択</button>
-  </div>
-
-  <div id="CacheAll" class="row" style="margin-top:12px;">
-    <button id="checkCacheBtn" disabled>キャッシュ使用量を確認</button>
-    <button id="clearCacheBtn" disabled>キャッシュをクリア</button>
-  </div>
-
-  <div id="navAll" class="row" style="display:none; margin-top:12px;">
-    <button id="prevYear">⏪ 昨年</button>
-    <button id="prevDay">◀ 昨日</button>
-    <button id="showToday">今日</button>
-    <button id="nextDay">明日 ▶</button>
-    <button id="nextYear">来年 ⏩</button>
-  </div>
-
-  <div id="remembered" class="muted"></div>
-  <div id="cacheInfo" style="margin-top:10px; font-size:14px; color:#555;"></div>
-  <div id="status" class="muted"></div>
-
-  <div id="picker" class="row">
-    <select id="folderList" aria-label="フォルダ一覧"></select>
-    <button id="saveFolder">保存</button>
-  </div>
-
-  <div id="stage" class="frame">
-    <div class="viewport">
-      <img id="photo" alt="今日の画像" width="1600" height="1200" />
-      <div id="overlay"></div>
-    </div>
-    <div id="filename" class="muted"></div>
-  </div>
-
-  <div id="slide">
-    <button id="slideDesc">◀ 降順</button>
-    <button id="slideStop">■ 停止</button>
-    <button id="slideAsc">▶ 昇順</button>
-  </div>
-
-  <select id="speedSelect">
-    <option value="1000">1秒</option>
-    <option value="2000" selected>2秒</option>
-    <option value="3000">3秒</option>
-    <option value="5000">5秒</option>
-  </select>
-
-
-  <!-- 自分のJavaScript -->
-  <script src="script.js"></script>
-
-  <!-- Google API -->
-  <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-
-</body>
-</html>
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>日めくり | Google連携テスト</title><link rel="stylesheet" href="style.css">
+<header><div class="brand"><span class="logo">▣</span>日めくり <span class="tag">PREVIEW</span></div><form class="search" id="search"><input id="query" aria-label="日付で検索" placeholder="日付で検索　例：2026-10-25"><button aria-label="検索">⌕</button></form><span class="tag"><button id="connect" disabled>Googleに接続</button><button id="disconnect" hidden>切断</button></span></header>
+<div class="connection"><span id="connectionStatus">デモモード · Google未接続</span><button id="chooseFolder" disabled>画像フォルダ</button><button id="createSheet" disabled>保存先を新規作成</button><button id="chooseSheet" disabled>既存の保存先を選ぶ</button><button id="recoverSwap" hidden>中断した入れ替えを復旧</button><button id="sync" disabled>再読み込み</button><a id="sheetLink" target="_blank" rel="noopener" hidden>保存先を開く</a></div><div class="layout"><main><div class="player" id="player"><div class="paper" id="paper"></div><div class="bar"><button id="play" aria-label="スライドショー">▶</button><span id="position"></span><span class="spacer"></span><select id="speed" aria-label="スライド間隔"><option value="2000">2秒</option><option value="4000">4秒</option></select><button id="full" aria-label="全画面切り替え">⛶</button></div></div>
+<h1 id="title"></h1><div class="subrow"><div class="folder"><div class="avatar">▣</div><div><strong>日めくりアーカイブ</strong><div class="muted"><span id="folderName">サンプルフォルダ · 6枚</span></div></div></div><div class="actions"><button id="favorite" aria-pressed="false">☆ お気に入り</button><button id="edit">✎ 日付を修正</button><button id="undo" disabled>元に戻す</button></div></div>
+<div class="nav"><button id="yearPrev">≪ 前年</button><button id="prev">‹ 前日</button><button id="today">今日</button><button id="next">翌日 ›</button><button id="yearNext">翌年 ≫</button></div>
+<div class="description"><strong id="filename"></strong><div id="detail" class="muted"></div><label for="diary">このカレンダーの日記</label><textarea id="diary" rows="5" placeholder="この日の出来事や、画像を見て感じたことを記録…"></textarea><div class="diary-actions"><span id="diaryStatus" role="status">未保存</span><div><button id="deleteDiary">日記を削除</button><button id="saveDiary" class="accent">日記を保存</button></div></div></div><div id="status" class="state" role="status" aria-live="polite"></div>
+<div class="section"><h2>使い方を試す</h2><p class="muted">右の一覧から画像を選ぶか、日付を検索してください。Google接続後は、画像フォルダと日記・お気に入りの保存先を選んでください。</p><button id="leap">2月29日の動作を試す</button><button id="reset">サンプルを初期化</button></div><footer>Google連携のテスト版です。接続前はサンプルのみ使用します。日付はカレンダーの日付ひとつで管理し、お気に入りは画像IDで管理します。</footer></main>
+<aside><div class="chips"><button id="all" class="active">すべて</button><button id="same">同じ月日</button><button id="favoritesOnly">★ お気に入り</button></div><h2>アーカイブから</h2><div id="list"></div><div class="notice"><strong>日付が違う画像を見つけたら</strong><br>画像を開いて「日付を修正」。変更前後のファイル名を確認して適用します。デモではサンプルのみ変更します。Google接続後は、Pickerで対象画像を許可し、適用すると実際のファイル名が変わります。</div></aside></div>
+<dialog id="dialog"><h2>画像の日付を修正</h2><p class="muted">画像の中の日付を確認して、正しい日付を選んでください。</p><label for="newDate">正しい日付<input id="newDate" type="date" required></label><div class="compare"><span class="muted">変更前</span><div id="before"></div><span class="muted">変更後</span><strong id="after" style="display:block"></strong></div><label id="swapOption" hidden><input type="checkbox" id="swapNames"> この画像と日付を入れ替える</label><div id="swapPreview" class="compare" hidden></div><p id="error" class="error" role="alert"></p><p class="muted"><span id="renameNotice">サンプル内の変更です。画像の内容は変更しません。</span></p><div class="dialog-actions"><button id="cancel">キャンセル</button><button id="apply" class="accent">変更を適用</button></div></dialog>
+<script src="script.js"></script><script async src="https://accounts.google.com/gsi/client" onload="googleIdentityReady()"></script><script async src="https://apis.google.com/js/api.js" onload="googlePickerReady()"></script></html>
